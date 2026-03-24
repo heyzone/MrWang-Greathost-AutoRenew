@@ -14,7 +14,7 @@ PASSWORD = os.getenv("GREATHOST_PASSWORD", "")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 PROXY_URL = os.getenv("PROXY_URL", "")
-TARGET_NAME = os.getenv("TARGET_NAME", "loveMC")
+TARGET_NAME = os.getenv("TARGET_NAME", "kv1")
 
 STATUS_MAP = {
     "running": ["🟢", "Running"],
