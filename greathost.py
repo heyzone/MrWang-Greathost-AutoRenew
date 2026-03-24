@@ -24,6 +24,14 @@ STATUS_MAP = {
     "suspended": ["🚫", "Suspended"]
 }
 
+MSG_MAP = {
+    "Servidor gratuito renovado correctamente": "免费服务器续期成功",
+    "Has alcanzado el límite máximo de renovaciones": "已达到最大续期上限",
+    "Debes esperar antes de renovar de nuevo": "请等待冷却后再续期",
+    "Servidor no encontrado": "未找到服务器",
+    "No tienes permiso para renovar este servidor": "无权限续期此服务器",
+}
+
 def now_shanghai():
     return datetime.now(ZoneInfo("Asia/Shanghai")).strftime('%Y/%m/%d %H:%M:%S')
 
@@ -37,6 +45,9 @@ def calculate_hours(date_str):
     except Exception as e:
         print(f"⚠️ 时间解析失败: {e}")
         return 0
+
+def translate_msg(msg):
+    return MSG_MAP.get(msg, msg)
 
 def send_notice(kind, fields):
     titles = {
@@ -165,9 +176,8 @@ def run():
 
         res = gh.renew(sid)
         ok = res.get("success", False)
-        msg = res.get("message", "无返回消息")
+        msg = translate_msg(res.get("message", "无返回消息"))
 
-        # ✅ 修复：兼容多种响应结构取 nextRenewalDate
         next_date = (
             res.get("nextRenewalDate") or
             res.get("details", {}).get("nextRenewalDate") or
