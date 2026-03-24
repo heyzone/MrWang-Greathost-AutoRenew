@@ -13,8 +13,8 @@ EMAIL = os.getenv("GREATHOST_EMAIL", "")
 PASSWORD = os.getenv("GREATHOST_PASSWORD", "")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
-PROXY_URL = os.getenv("PROXY_URL", "") #=====sock5代理可留空=====
-TARGET_NAME = os.getenv("TARGET_NAME", "kv1") #=====目标服务器名=====
+PROXY_URL = os.getenv("PROXY_URL", "")
+TARGET_NAME = os.getenv("TARGET_NAME", "loveMC")
 
 STATUS_MAP = {
     "running": ["🟢", "Running"],
@@ -48,16 +48,20 @@ def send_notice(kind, fields):
     }
     body = "\n".join([f"{e} {k}: {v}" for e, k, v in fields])
     msg = f"{titles.get(kind, '📢 通知')}\n\n{body}\n📅 时间: {now_shanghai()}"
-    
+
     if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
         try:
-            requests.post(
+            r = requests.post(
                 f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
                 data={"chat_id": TELEGRAM_CHAT_ID, "text": msg, "parse_mode": "HTML"},
-                proxies={"http": None, "https": None}, # <-- 只需要加这一行，强制直连
-                timeout=10 # 稍微增加超时防止网络卡顿
+                proxies={"http": None, "https": None},
+                timeout=10
             )
-        except: pass
+            print(f"📨 TG推送结果: {r.status_code} | {r.text[:80]}")
+        except Exception as e:
+            print(f"📨 TG推送失败: {e}")
+    else:
+        print("📨 TG未配置，跳过推送")
 
     try:
         md = msg.replace("<b>", "**").replace("</b>", "**").replace("<code>", "`").replace("</code>", "`")
@@ -99,6 +103,7 @@ class GH:
 
     def get_server(self):
         servers = self.api("/api/servers").get("servers", [])
+        print(f"DEBUG 服务器列表: {[s.get('name') for s in servers]}")
         return next((s for s in servers if s.get("name") == TARGET_NAME), None)
 
     def get_status(self, sid):
@@ -110,14 +115,13 @@ class GH:
 
     def get_renew_info(self, sid):
         data = self.api(f"/api/renewal/contracts/{sid}")
-        print(f"DEBUG: 原始合同数据 -> {str(data)[:100]}...")
+        print(f"DEBUG: 原始合同数据 -> {str(data)[:200]}...")
         return data.get("contract", {}).get("renewalInfo") or data.get("renewalInfo", {})
 
     def get_btn(self, sid):
         self.d.get(f"https://greathost.es/contracts/{sid}")
         btn = self.w.until(EC.presence_of_element_located((By.ID, "renew-free-server-btn")))
         self.w.until(lambda d: btn.text.strip() != "")
-        
         btn_text = btn.text.strip()
         print(f"🔘 按钮状态: '{btn_text}'")
         return btn_text
@@ -151,58 +155,64 @@ def run():
         if "Wait" in btn:
             m = re.search(r"Wait\s+(\d+\s+\w+)", btn)
             send_notice("cooldown", [
-                ("📛","服务器名称",TARGET_NAME),
-                ("🆔","ID",f"<code>{sid}</code>"),
-                ("⏳","冷却时间",m.group(1) if m else btn),
-                ("📊","当前累计",f"{before}h"),
-                ("🚀","服务器状态",status_disp)
+                ("📛", "服务器名称", TARGET_NAME),
+                ("🆔", "ID", f"<code>{sid}</code>"),
+                ("⏳", "冷却时间", m.group(1) if m else btn),
+                ("📊", "当前累计", f"{before}h"),
+                ("🚀", "服务器状态", status_disp)
             ])
             return
 
         res = gh.renew(sid)
         ok = res.get("success", False)
         msg = res.get("message", "无返回消息")
-        after = calculate_hours(res.get("details", {}).get("nextRenewalDate")) if ok else before
-        print(f"📡 续期响应结果: {ok} | Date='{res.get('details',{}).get('nextRenewalDate')}' | Message='{msg}'")
+
+        # ✅ 修复：兼容多种响应结构取 nextRenewalDate
+        next_date = (
+            res.get("nextRenewalDate") or
+            res.get("details", {}).get("nextRenewalDate") or
+            res.get("contract", {}).get("nextRenewalDate")
+        )
+        after = calculate_hours(next_date) if ok else before
+        print(f"📡 续期响应: ok={ok} | next_date='{next_date}' | before={before}h | after={after}h | msg='{msg}'")
 
         if ok and after > before:
             send_notice("renew_success", [
-                ("📛","服务器名称",TARGET_NAME),
-                ("🆔","ID",f"<code>{sid}</code>"),
-                ("⏰","增加时间",f"{before} ➔ {after}h"),
-                ("🚀","服务器状态",status_disp),
-                ("💡","提示",msg),
-                ("🌐","落地 IP",f"<code>{ip}</code>")
+                ("📛", "服务器名称", TARGET_NAME),
+                ("🆔", "ID", f"<code>{sid}</code>"),
+                ("⏰", "增加时间", f"{before} ➔ {after}h"),
+                ("🚀", "服务器状态", status_disp),
+                ("💡", "提示", msg),
+                ("🌐", "落地 IP", f"<code>{ip}</code>")
             ])
-        elif "5 d" in msg or before > 108:
+        elif ok and ("5 d" in msg or before > 108):
             send_notice("maxed_out", [
-                ("📛","服务器名称",TARGET_NAME),
-                ("🆔","ID",f"<code>{sid}</code>"),
-                ("⏰","剩余时间",f"{after}h"),
-                ("🚀","服务器状态",status_disp),
-                ("💡","提示",msg),
-                ("🌐","落地 IP",f"<code>{ip}</code>")
+                ("📛", "服务器名称", TARGET_NAME),
+                ("🆔", "ID", f"<code>{sid}</code>"),
+                ("⏰", "剩余时间", f"{after}h"),
+                ("🚀", "服务器状态", status_disp),
+                ("💡", "提示", msg),
+                ("🌐", "落地 IP", f"<code>{ip}</code>")
             ])
         else:
             send_notice("renew_failed", [
-                ("📛","服务器名称",TARGET_NAME),
-                ("🆔","ID",f"<code>{sid}</code>"),
-                ("🚀","服务器状态",status_disp),
-                ("⏰","剩余时间",f"{before}h"),
-                ("💡","提示",msg),
-                ("🌐","落地 IP",f"<code>{ip}</code>")
+                ("📛", "服务器名称", TARGET_NAME),
+                ("🆔", "ID", f"<code>{sid}</code>"),
+                ("🚀", "服务器状态", status_disp),
+                ("⏰", "剩余时间", f"{before}h"),
+                ("💡", "提示", msg),
+                ("🌐", "落地 IP", f"<code>{ip}</code>")
             ])
+
     except Exception as e:
         print(f"🚨 运行异常: {e}")
-        # 因为 send_notice 内部已经强制直连，所以这里直接调就行，代码清爽多了
         send_notice("error", [
             ("📛", "服务器名称", TARGET_NAME),
             ("❌", "故障", f"<code>{str(e)[:100]}</code>"),
-            ("🌐", "代理状态", "已尝试直连") 
+            ("🌐", "代理状态", "已尝试直连")
         ])
 
     finally:
-        # 增加一个判断，防止 gh 没初始化成功导致报错
         if 'gh' in locals():
             try: gh.close()
             except: pass
