@@ -117,10 +117,8 @@ class GH:
         print(f"DEBUG 第一条服务器完整数据: {servers[0] if servers else 'empty'}")
         return next((s for s in servers if s.get("name") == TARGET_NAME), None)
 
-    def get_status(self, sid):
-        info = self.api(f"/api/servers/{sid}/information")
-        print(f"DEBUG get_status raw: {info}")   # 临时加这行
-        st = info.get("status", "unknown").lower()
+    def get_status(self, srv):
+        st = srv.get("status", "unknown").lower()
         icon, name = STATUS_MAP.get(st, ["❓", st])
         print(f"📋 状态核对: {TARGET_NAME} | {icon} {name}")
         return icon, name
@@ -159,7 +157,7 @@ def run():
         srv = gh.get_server()
         if not srv: raise Exception(f"未找到服务器 {TARGET_NAME}")
         sid = srv["id"]
-        print(f"✅ 已锁定目标服务器: {TARGET_NAME} (ID: {sid})")
+        print(f"✅ 已锁定目标服务器: {TARGET_NAME} (ID: {srv})")
 
         icon, stname = gh.get_status(sid)
         status_disp = f"{icon} {stname}"
