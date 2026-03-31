@@ -114,7 +114,7 @@ class GH:
 
     def get_server(self):
         servers = self.api("/api/servers").get("servers", [])
-        print(f"DEBUG 服务器列表: {[s.get('name') for s in servers]}")
+        print(f"DEBUG 第一条服务器完整数据: {servers[0] if servers else 'empty'}")
         return next((s for s in servers if s.get("name") == TARGET_NAME), None)
 
     def get_status(self, sid):
