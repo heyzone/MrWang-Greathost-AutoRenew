@@ -15,7 +15,7 @@ PASSWORD = os.getenv("GREATHOST_PASSWORD", "")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 PROXY_URL = os.getenv("PROXY_URL", "") # 格式: socks5://user:pass@host:port 或 http://...
-TARGET_NAME = os.getenv("TARGET_NAME", "kv1")
+TARGET_NAME = os.getenv("TARGET_NAME", "furni1")
 
 # 增强映射表，涵盖更多可能的 API 返回词
 STATUS_MAP = {
