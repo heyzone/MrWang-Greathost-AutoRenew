@@ -154,13 +154,15 @@ def run():
     try:
         ip = gh.get_ip()
         gh.login()
+        
         srv = gh.get_server()
         if not srv: raise Exception(f"未找到服务器 {TARGET_NAME}")
-        sid = srv["id"]
-        print(f"✅ 已锁定目标服务器: {TARGET_NAME} (ID: {srv})")
+        sid = srv["id"]                        # ← 这行保持不变，没问题
+        print(f"✅ 已锁定目标服务器: {TARGET_NAME} (ID: {sid})")
 
-        icon, stname = gh.get_status(sid)
+        icon, stname = gh.get_status(srv)      # ← 这里改成传 srv（你已改）
         status_disp = f"{icon} {stname}"
+        
 
         # ===== 新增：Offline 检测 + 重启监控 =====
         if stname == "Offline":
