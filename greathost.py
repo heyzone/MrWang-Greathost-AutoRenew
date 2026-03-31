@@ -141,6 +141,12 @@ class GH:
         print(f"🚀 正在执行续期 POST...")
         return self.api(f"/api/renewal/contracts/{sid}/renew-free", "POST")
 
+    # ===== 新增：重启服务器 =====
+    def restart(self, sid):
+        print(f"🔄 正在执行重启 POST...")
+        return self.api(f"/api/servers/{sid}/power/restart", "POST")
+    # ===========================
+
     def close(self):
         self.d.quit()
 
@@ -156,6 +162,32 @@ def run():
 
         icon, stname = gh.get_status(sid)
         status_disp = f"{icon} {stname}"
+
+        # ===== 新增：Offline 检测 + 重启监控 =====
+        if stname == "Offline":
+            print(f"⚪ 检测到服务器离线，尝试重启...")
+            restart_res = gh.restart(sid)
+            print(f"🔄 重启响应: {restart_res}")
+
+            print(f"⏳ 等待 3 分钟监控状态变化...")
+            time.sleep(180)
+
+            icon_after, stname_after = gh.get_status(sid)
+            status_after_disp = f"{icon_after} {stname_after}"
+
+            changed = stname_after != stname
+            print(f"📊 状态变化: {stname} ➔ {stname_after} | 是否恢复: {changed}")
+
+            send_notice("error" if not changed else "renew_success", [
+                ("📛", "服务器名称", TARGET_NAME),
+                ("🆔", "ID", f"<code>{sid}</code>"),
+                ("🔄", "触发原因", "检测到 Offline，已执行重启"),
+                ("📊", "状态变化", f"⚪ Offline ➔ {status_after_disp}"),
+                ("✅" if changed else "❌", "恢复状态", "已恢复在线" if changed else "重启后仍未恢复"),
+                ("🌐", "落地 IP", f"<code>{ip}</code>")
+            ])
+            return
+        # ==========================================
 
         info = gh.get_renew_info(sid)
         before = calculate_hours(info.get("nextRenewalDate"))
