@@ -1,4 +1,4 @@
-##### greathost.py api后台协议抓取，指定名续期 ######
+##### greathost.py api后台协议抓取，指定名续期 + 智能启动逻辑 ######
 
 import os, re, time, json, requests
 from datetime import datetime, timezone
@@ -122,7 +122,11 @@ class GH:
         st = info.get("status", "unknown").lower()
         icon, name = STATUS_MAP.get(st, ["❓", st])
         print(f"📋 状态核对: {TARGET_NAME} | {icon} {name}")
-        return icon, name
+        return icon, name, st
+
+    def power_op(self, sid, action="start"):
+        print(f"⚡ 正在尝试对服务器执行: {action}")
+        return self.api(f"/api/servers/{sid}/power", "POST")
 
     def get_renew_info(self, sid):
         data = self.api(f"/api/renewal/contracts/{sid}")
@@ -154,9 +158,27 @@ def run():
         sid = srv["id"]
         print(f"✅ 已锁定目标服务器: {TARGET_NAME} (ID: {sid})")
 
-        icon, stname = gh.get_status(sid)
-        status_disp = f"{icon} {stname}"
+        # 1. 检查并尝试修复运行状态 (带轮询检测)
+        icon, stname, raw_st = gh.get_status(sid)
+        boot_msg = ""
+        if raw_st != "running":
+            print(f"⚠️ 检测到服务器处于 {raw_st} 状态，尝试启动...")
+            gh.power_op(sid, "start")
+            
+            # 轮询检测状态，最多尝试3次，每次间隔5秒
+            for i in range(3):
+                print(f"⏳ 等待启动中 (第 {i+1}/3 次核对)...")
+                time.sleep(5)
+                icon, stname, raw_st = gh.get_status(sid)
+                if raw_st == "running":
+                    print("✅ 服务器已成功切换至 Running 状态")
+                    break
+            
+            boot_msg = f" (已执行自动启动，最终状态: {stname})"
+        
+        status_disp = f"{icon} {stname}{boot_msg}"
 
+        # 2. 续期逻辑
         info = gh.get_renew_info(sid)
         before = calculate_hours(info.get("nextRenewalDate"))
 
