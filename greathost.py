@@ -1,4 +1,4 @@
-##### greathost.py api后台协议抓取，指定名续期 + 智能启动逻辑 ######
+##### greathost.py V2.1 - 增强状态兼容性版 ######
 
 import os, re, time, json, requests
 from datetime import datetime, timezone
@@ -15,11 +15,15 @@ PASSWORD = os.getenv("GREATHOST_PASSWORD", "")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 PROXY_URL = os.getenv("PROXY_URL", "") # 格式: socks5://user:pass@host:port 或 http://...
-TARGET_NAME = os.getenv("TARGET_NAME", "furni1")
+TARGET_NAME = os.getenv("TARGET_NAME", "kv1")
 
+# 增强映射表，涵盖更多可能的 API 返回词
 STATUS_MAP = {
     "running": ["🟢", "Running"],
+    "online": ["🟢", "Running"],
+    "active": ["🟢", "Running"],
     "starting": ["🟡", "Starting"],
+    "pending": ["🟡", "Starting"],
     "stopped": ["🔴", "Stopped"],
     "offline": ["⚪", "Offline"],
     "suspended": ["🚫", "Suspended"]
@@ -28,7 +32,7 @@ STATUS_MAP = {
 MSG_MAP = {
     "Servidor gratuito renovado correctamente": "免费服务器续期成功",
     "Has alcanzado el límite máximo de renovaciones": "已达到最大续期上限",
-    "Debes esperar antes de renovar de nuevo": "请等待冷却后再续期",
+    "Debes esperar antes de renovar de nuovo": "请等待冷却后再续期",
     "Servidor no encontrado": "未找到服务器",
     "No tienes permiso para renovar este servidor": "无权限续期此服务器",
 }
@@ -94,7 +98,10 @@ class GH:
     def api(self, url, method="GET"):
         print(f"📡 API 调用 [{method}] {url}")
         script = f"return fetch('{url}',{{method:'{method}'}}).then(r=>r.json()).catch(e=>({{success:false,message:e.toString()}}))"
-        return self.d.execute_script(script)
+        try:
+            return self.d.execute_script(script)
+        except:
+            return {"success": False}
 
     def get_ip(self):
         try:
@@ -104,7 +111,6 @@ class GH:
             print(f"🌐 落地 IP: {ip}")
             return ip
         except:
-            print("🌐 落地 IP: 无法获取")
             return "Unknown"
 
     def login(self):
@@ -116,12 +122,16 @@ class GH:
         self.w.until(EC.url_contains("/dashboard"))
 
     def get_server(self):
-        servers = self.api("/api/servers").get("servers", [])
+        res = self.api("/api/servers")
+        servers = res.get("servers", []) if isinstance(res, dict) else []
         return next((s for s in servers if s.get("name") == TARGET_NAME), None)
 
     def get_status(self, sid):
         info = self.api(f"/api/servers/{sid}/information")
-        st = info.get("status", "unknown").lower()
+        # 兼容多种字段返回：status, state 或 直接返回字符串
+        raw_st = info.get("status") or info.get("state") or "unknown"
+        st = str(raw_st).lower().strip()
+        
         icon, name = STATUS_MAP.get(st, ["❓", st])
         print(f"📋 实时状态: {TARGET_NAME} -> {icon} {name}")
         return icon, name, st
@@ -131,6 +141,7 @@ class GH:
 
     def get_renew_info(self, sid):
         data = self.api(f"/api/renewal/contracts/{sid}")
+        if not isinstance(data, dict): return {}
         return data.get("contract", {}).get("renewalInfo") or data.get("renewalInfo", {})
 
     def get_btn(self, sid):
@@ -142,7 +153,6 @@ class GH:
         return btn_text
 
     def renew(self, sid):
-        print(f"🚀 提交续期 API 请求...")
         return self.api(f"/api/renewal/contracts/{sid}/renew-free", "POST")
 
     def close(self):
@@ -158,12 +168,12 @@ def run():
         sid = srv["id"]
         print(f"✅ 锁定目标: {TARGET_NAME} (ID: {sid})")
 
-        # --- 1. 智能状态维护 (优化版) ---
+        # --- 1. 智能状态维护 ---
         icon, stname, raw_st = gh.get_status(sid)
         boot_msg = ""
         
         SHOULD_START = ["stopped", "offline"]
-        TRANSITIONING = ["starting"]
+        TRANSITIONING = ["starting", "pending"]
 
         needs_wait = False
         if raw_st in SHOULD_START:
@@ -173,8 +183,11 @@ def run():
         elif raw_st in TRANSITIONING:
             print(f"⏳ 服务器正忙({raw_st})，进入观测模式...")
             needs_wait = True
+        elif raw_st == "running":
+            print(f"✅ 服务器当前运行正常")
         else:
-            print(f"✅ 服务器当前运行正常 ({raw_st})")
+            print(f"⚠️ 未知状态 {raw_st}，尝试进入观测...")
+            needs_wait = True
 
         if needs_wait:
             max_retries = 12  # 20秒 * 12次 = 4分钟
@@ -183,12 +196,12 @@ def run():
                 print(f"🕒 启动观测中... (第 {i+1}/{max_retries} 次, 已过 {i*wait_interval}s)")
                 time.sleep(wait_interval)
                 icon, stname, raw_st = gh.get_status(sid)
-                if raw_st == "running":
-                    print(f"✨ 服务器已成功启动！耗时约 {i*wait_interval}s")
+                if raw_st in ["running", "online", "active"]:
+                    print(f"✨ 服务器已就绪！耗时约 {i*wait_interval}s")
                     break
             else:
-                print("🚨 服务器启动超时，可能存在异常")
-            boot_msg = f" (自动维护后: {stname})"
+                print("🚨 服务器启动等待超时")
+            boot_msg = f" (维护后: {stname})"
         
         status_disp = f"{icon} {stname}{boot_msg}"
 
@@ -213,12 +226,14 @@ def run():
         ok = res.get("success", False)
         msg = translate_msg(res.get("message", "无返回消息"))
 
-        next_date = (
-            res.get("nextRenewalDate") or
-            res.get("details", {}).get("nextRenewalDate") or
-            res.get("contract", {}).get("nextRenewalDate")
-        )
-        after = calculate_hours(next_date) if ok else before
+        # 深度提取下次续期时间
+        next_date = None
+        if isinstance(res, dict):
+            next_date = res.get("nextRenewalDate") or \
+                        res.get("details", {}).get("nextRenewalDate") or \
+                        res.get("contract", {}).get("nextRenewalDate")
+        
+        after = calculate_hours(next_date) if (ok and next_date) else before
 
         if ok and after > before:
             send_notice("renew_success", [
@@ -228,7 +243,7 @@ def run():
                 ("💡", "提示", msg),
                 ("🌐", "落地 IP", f"<code>{ip}</code>")
             ])
-        elif ok and ("5 d" in msg or before > 108):
+        elif ok:
             send_notice("maxed_out", [
                 ("📛", "服务器", TARGET_NAME),
                 ("⏰", "剩余时间", f"{after}h"),
@@ -249,8 +264,7 @@ def run():
         print(f"🚨 运行异常: {e}")
         send_notice("error", [
             ("📛", "服务器", TARGET_NAME),
-            ("❌", "故障", f"<code>{str(e)[:100]}</code>"),
-            ("🌐", "代理状态", "请检查网络配置")
+            ("❌", "故障", f"<code>{str(e)[:100]}</code>")
         ])
 
     finally:
