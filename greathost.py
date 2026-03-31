@@ -165,7 +165,7 @@ def run():
         
 
         # ===== 新增：Offline 检测 + 重启监控 =====
-        if stname == "Offline":
+        if stname in ("Offline", "Stopped"):
             print(f"⚪ 检测到服务器离线，尝试重启...")
             restart_res = gh.restart(sid)
             print(f"🔄 重启响应: {restart_res}")
