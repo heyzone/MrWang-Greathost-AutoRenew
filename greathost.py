@@ -119,6 +119,7 @@ class GH:
 
     def get_status(self, sid):
         info = self.api(f"/api/servers/{sid}/information")
+        print(f"DEBUG get_status raw: {info}")   # 临时加这行
         st = info.get("status", "unknown").lower()
         icon, name = STATUS_MAP.get(st, ["❓", st])
         print(f"📋 状态核对: {TARGET_NAME} | {icon} {name}")
