@@ -1,13 +1,12 @@
 # GreatHost 自动续期状态
 
-🎉 **GreatHost 续期成功**
+🚨 **GreatHost 脚本报错**
 
 📛 服务器名称: furni1
-🆔 ID: `5c692fa5-9d81-4b80-bee9-0818b3569bfe`
-⏰ 增加时间: 56 ➔ 68h
-🚀 服务器状态: 🟢 Running
-💡 提示: 免费服务器续期成功
-🌐 落地 IP: `141.148.175.171`
-📅 时间: 2026/05/04 21:18:37
+❌ 故障: `Message: unknown error: net::ERR_CONNECTION_CLOSED
+  (Session info: chrome=147.0.7727.137)
+Stacktrac`
+🌐 代理状态: 已尝试直连
+📅 时间: 2026/05/05 09:30:23
 
-> 最近更新: 2026/05/04 21:18:38
+> 最近更新: 2026/05/05 09:30:24
