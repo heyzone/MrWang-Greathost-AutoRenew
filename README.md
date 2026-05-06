@@ -4,9 +4,9 @@
 
 📛 服务器名称: furni1
 ❌ 故障: `Message: unknown error: net::ERR_CONNECTION_CLOSED
-  (Session info: chrome=147.0.7727.137)
-Stacktrac`
+  (Session info: chrome=148.0.7778.96)
+Stacktrace`
 🌐 代理状态: 已尝试直连
-📅 时间: 2026/05/05 21:06:22
+📅 时间: 2026/05/06 09:28:48
 
-> 最近更新: 2026/05/05 21:06:23
+> 最近更新: 2026/05/06 09:28:48
